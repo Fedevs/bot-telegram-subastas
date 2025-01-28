@@ -6,21 +6,6 @@ from database.appwrite_client import create_auction
 
 TITLE, IMAGE, PRICE, INCREMENT, END_DATE, URL, DESCRIPTION, CONFIRMATION = range(8)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    await update.message.reply_text(f'Hola {user.first_name}! Bienvenido al bot de subastas. Usa /ayuda para ver los comandos disponibles.')
-
-async def ayuda(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Comandos disponibles:\n"
-        "/start - Iniciar el bot\n"
-        "/ayuda - Mostrar esta ayuda\n"
-        "/subastar - Crear una nueva subasta\n"
-        "/ofertar - Hacer una oferta en una subasta (no implementado)\n"
-        "/missubastas - Ver tus subastas (no implementado)\n"
-        "/misofertas - Ver tus ofertas (no implementado)"
-    )
-
 async def start_auction(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Vamos a crear una nueva subasta. Por favor, ingresa el título:")
     return TITLE
@@ -46,7 +31,7 @@ async def receive_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if update.message.photo:
         file = await update.message.photo[-1].get_file()
-        context.user_data['image_url'] = file.file_path
+        context.user_data['image_url'] = file.file_id
         await update.message.reply_text("Imagen recibida. Ahora, ingresa el precio inicial (sin decimales):")
         return PRICE
     
@@ -55,7 +40,7 @@ async def receive_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def receive_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        context.user_data['price'] = int(update.message.text)
+        context.user_data['initial_price'] = int(update.message.text)
         keyboard = [
             [InlineKeyboardButton("1000", callback_data='increment_1000'),
              InlineKeyboardButton("2000", callback_data='increment_2000')],
@@ -225,7 +210,7 @@ async def receive_description(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Mostrar resumen y pedir confirmación
     resumen = f"Resumen de la subasta:\n"
     resumen += f"Título: {context.user_data['title']}\n"
-    resumen += f"Precio inicial: $ {context.user_data['price']}\n"
+    resumen += f"Precio inicial: $ {context.user_data['initial_price']}\n"
     resumen += f"Incremento: $ {context.user_data['increment']}\n"
     resumen += f"Fecha de finalización: {context.user_data['end_date'].strftime('%d/%m/%Y %H:%M')}\n"
     resumen += f"Enlace: {context.user_data['url'] or '-'}\n"
@@ -243,7 +228,7 @@ async def receive_description(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text(resumen, reply_markup=reply_markup)
     return CONFIRMATION
 
-async def confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def auction_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
@@ -255,7 +240,8 @@ async def confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'username': user.username,
             'title': context.user_data['title'],
             'image_url': context.user_data['image_url'],
-            'price': context.user_data['price'],
+            'initial_price': context.user_data['initial_price'],
+            'current_price': context.user_data['initial_price'], # la primera vez son iguales
             'increment': context.user_data['increment'],
             'end_date': context.user_data['end_date'].strftime("%m/%d/%Y %H:%M"),
             'url': context.user_data['url'],
@@ -303,27 +289,7 @@ def get_auction_handler():
                 MessageHandler(filters.TEXT & ~filters.COMMAND, receive_description),
                 CallbackQueryHandler(receive_description, pattern='^skip_description$')
             ],
-            CONFIRMATION: [CallbackQueryHandler(confirmation)]
+            CONFIRMATION: [CallbackQueryHandler(auction_confirmation)]
         },
         fallbacks=[CommandHandler('cancelar', cancel)]
     )
-
-async def ofertar(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Implementar la lógica para hacer una oferta
-    pass
-
-async def mis_subastas(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Implementar la lógica para ver las subastas del usuario
-    pass
-
-async def mis_ofertas(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Implementar la lógica para ver las ofertas del usuario
-    pass
-
-async def comando_desconocido(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Lo siento, no entiendo ese mensaje. Por favor, usa un comando válido. "
-        "Escribe /ayuda para ver la lista de comandos disponibles."
-    )
-
-# Agregar más manejadores según sea necesario
